@@ -260,6 +260,29 @@ impl LanDevice {
         .await
     }
 
+    pub async fn send_segment_color_rgb(
+        &self,
+        segment: u32,
+        r: u8,
+        g: u8,
+        b: u8,
+    ) -> anyhow::Result<()> {
+        // Segment color binary packet for ptReal.
+        // Format: 0x33 0x05 0x15 0x01 R G B 0x00×5 SEG_LO SEG_HI [pad] CHECKSUM
+        // SEG_LO/SEG_HI: little-endian bitmask where bit N = segment N.
+        // finish() in ble.rs pads to 19 bytes then appends XOR checksum.
+        // Reverse-engineered format: <https://github.com/wez/govee2mqtt/issues/105>
+        let mask: u16 = 1u16.checked_shl(segment).unwrap_or(0);
+        let bytes = Base64HexBytes::with_bytes(vec![
+            0x33, 0x05, 0x15, 0x01,
+            r, g, b,
+            0x00, 0x00, 0x00, 0x00, 0x00,
+            (mask & 0xff) as u8,
+            (mask >> 8) as u8,
+        ]);
+        self.send_real(bytes.base64()).await
+    }
+
     pub async fn set_scene_by_name(&self, scene_name: &str) -> anyhow::Result<()> {
         for category in GoveeUndocumentedApi::get_scenes_for_device(&self.sku).await? {
             for scene in category.scenes {
