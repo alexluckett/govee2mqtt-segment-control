@@ -361,6 +361,34 @@ async fn mqtt_light_segment_command(
     let command: HassLightCommand = from_json(&payload)?;
     log::info!("Command for {device} segment {segment}: {payload}");
 
+    // LAN API path: encode color/brightness into RGB and send via ptReal.
+    if let Some(lan_dev) = &device.lan_device {
+        log::info!("Using LAN API to control {device} segment {segment}");
+
+        let (r, g, b) = if command.state == "OFF" {
+            (0u8, 0u8, 0u8)
+        } else if let Some(color) = &command.color {
+            if let Some(bri) = command.brightness {
+                let scale = bri as f32 / 255.0;
+                (
+                    (color.r as f32 * scale) as u8,
+                    (color.g as f32 * scale) as u8,
+                    (color.b as f32 * scale) as u8,
+                )
+            } else {
+                (color.r, color.g, color.b)
+            }
+        } else {
+            // ON with no color: white at requested brightness (or full)
+            let bri = command.brightness.unwrap_or(255);
+            (bri, bri, bri)
+        };
+
+        lan_dev.send_segment_color_rgb(segment, r, g, b).await?;
+        return Ok(());
+    }
+
+    // Platform API (cloud) path.
     if let Some(client) = state.get_platform_client().await {
         let info = device
             .http_device_info
@@ -389,7 +417,9 @@ async fn mqtt_light_segment_command(
                 .await?;
         }
     } else {
-        anyhow::bail!("set segments for {device}: Platform API is not available");
+        anyhow::bail!(
+            "set segments for {device}: neither LAN API nor Platform API is available"
+        );
     }
 
     Ok(())
