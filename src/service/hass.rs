@@ -407,6 +407,10 @@ async fn mqtt_light_segment_command(
     log::info!("Command for {device} segment {segment}: {payload}");
 
     // LAN API path: encode color/brightness into RGB and send via ptReal.
+    log::info!(
+        "Segment command for {device} segment {segment}: lan_device={}",
+        if device.lan_device.is_some() { "present" } else { "not yet discovered" }
+    );
     if let Some(lan_dev) = &device.lan_device {
         log::info!("Using LAN API to control {device} segment {segment}");
 
@@ -493,8 +497,10 @@ async fn mqtt_light_segment_command(
                 .await?;
         }
     } else {
-        anyhow::bail!(
-            "set segments for {device}: neither LAN API nor Platform API is available"
+        log::warn!(
+            "set segments for {device} segment {segment}: \
+             LAN device not yet discovered and Platform API is not available. \
+             Command dropped — try again after LAN discovery completes."
         );
     }
 
