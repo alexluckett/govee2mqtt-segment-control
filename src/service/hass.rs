@@ -341,6 +341,51 @@ async fn mqtt_light_command(
         }
     }
 
+    // Sync segment entity on/off and color state in HA whenever the global
+    // light changes, since the global command applies uniformly to all LEDs.
+    if let Some(segments) = device.supports_segmented_rgb() {
+        if let Some(hass) = state.get_hass_client().await {
+            for seg in segments {
+                let topic = light_segment_state_topic(&device, seg);
+                let payload = if command.state == "OFF" {
+                    serde_json::json!({"state": "OFF"})
+                } else if let Some(color) = &command.color {
+                    let bri = command.brightness.unwrap_or(100);
+                    {
+                        let mut dev = state.device_mut(&device.sku, &device.id).await;
+                        dev.segment_colors.insert(seg, *color);
+                        dev.segment_brightness.insert(seg, bri);
+                    }
+                    serde_json::json!({
+                        "state": "ON",
+                        "color_mode": "rgb",
+                        "color": {"r": color.r, "g": color.g, "b": color.b},
+                        "brightness": bri,
+                    })
+                } else {
+                    // Power on or brightness-only: update stored brightness if
+                    // one was commanded, keep stored color.
+                    let color = device.segment_colors.get(&seg).copied()
+                        .unwrap_or(DeviceColor { r: 255, g: 255, b: 255 });
+                    let bri = if let Some(new_bri) = command.brightness {
+                        state.device_mut(&device.sku, &device.id).await
+                            .segment_brightness.insert(seg, new_bri);
+                        new_bri
+                    } else {
+                        device.segment_brightness.get(&seg).copied().unwrap_or(100)
+                    };
+                    serde_json::json!({
+                        "state": "ON",
+                        "color_mode": "rgb",
+                        "color": {"r": color.r, "g": color.g, "b": color.b},
+                        "brightness": bri,
+                    })
+                };
+                hass.publish_obj(&topic, &payload).await?;
+            }
+        }
+    }
+
     Ok(())
 }
 
@@ -365,41 +410,57 @@ async fn mqtt_light_segment_command(
     if let Some(lan_dev) = &device.lan_device {
         log::info!("Using LAN API to control {device} segment {segment}");
 
-        let (r, g, b) = if command.state == "OFF" {
-            (0u8, 0u8, 0u8)
+        let (r, g, b, ha_color, ha_brightness) = if command.state == "OFF" {
+            (0u8, 0u8, 0u8, DeviceColor::default(), 0u8)
         } else if let Some(color) = &command.color {
-            // Store the base color for this segment so brightness-only
-            // commands can scale it correctly. devStatus returns (0,0,0)
-            // in segment mode so the device cannot be queried for this.
-            state
-                .device_mut(&device.sku, &device.id)
-                .await
-                .segment_colors
-                .insert(segment, *color);
-            if let Some(bri) = command.brightness {
-                let scale = bri as f32 / 100.0;
-                (
-                    (color.r as f32 * scale) as u8,
-                    (color.g as f32 * scale) as u8,
-                    (color.b as f32 * scale) as u8,
-                )
-            } else {
-                (color.r, color.g, color.b)
+            let bri = command.brightness.unwrap_or(100);
+            {
+                let mut dev = state.device_mut(&device.sku, &device.id).await;
+                dev.segment_colors.insert(segment, *color);
+                dev.segment_brightness.insert(segment, bri);
             }
+            let scale = bri as f32 / 100.0;
+            (
+                (color.r as f32 * scale) as u8,
+                (color.g as f32 * scale) as u8,
+                (color.b as f32 * scale) as u8,
+                *color,
+                bri,
+            )
         } else {
             // Brightness-only: scale the last color sent to this segment.
-            // Falls back to white if no color has been sent yet this session.
-            let stored = device.segment_colors.get(&segment).copied();
-            let base = stored.unwrap_or(DeviceColor { r: 255, g: 255, b: 255 });
-            let scale = command.brightness.unwrap_or(100) as f32 / 100.0;
+            let stored_color = device.segment_colors.get(&segment).copied()
+                .unwrap_or(DeviceColor { r: 255, g: 255, b: 255 });
+            let bri = command.brightness.unwrap_or(100);
+            state.device_mut(&device.sku, &device.id).await
+                .segment_brightness.insert(segment, bri);
+            let scale = bri as f32 / 100.0;
             (
-                (base.r as f32 * scale) as u8,
-                (base.g as f32 * scale) as u8,
-                (base.b as f32 * scale) as u8,
+                (stored_color.r as f32 * scale) as u8,
+                (stored_color.g as f32 * scale) as u8,
+                (stored_color.b as f32 * scale) as u8,
+                stored_color,
+                bri,
             )
         };
 
         lan_dev.send_segment_color_rgb(segment, r, g, b).await?;
+
+        // Publish state so HA shows accurate color/brightness and a proper toggle.
+        if let Some(hass) = state.get_hass_client().await {
+            let topic = light_segment_state_topic(&device, segment);
+            let payload = if command.state == "OFF" {
+                serde_json::json!({"state": "OFF"})
+            } else {
+                serde_json::json!({
+                    "state": "ON",
+                    "color_mode": "rgb",
+                    "color": {"r": ha_color.r, "g": ha_color.g, "b": ha_color.b},
+                    "brightness": ha_brightness,
+                })
+            };
+            hass.publish_obj(topic, &payload).await?;
+        }
         return Ok(());
     }
 
