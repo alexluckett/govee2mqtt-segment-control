@@ -1,5 +1,11 @@
 # Installing as a Home Assistant Add-On
 
+> **Note:** This is a fork of [wez/govee2mqtt](https://github.com/wez/govee2mqtt)
+> with added LAN API segment control for devices such as the H60B2 Tree Floor Lamp.
+> See [Segment Control](SEGMENT_CONTROL.md) for details.
+> Use the repository URL `https://github.com/alexluckett/govee2mqtt-segment-control`
+> when following the installation steps below.
+
 If you are running HAOS or Supervised Home Assistant, then your
 installation is compatible with Home Assistant Add-Ons.
 
@@ -53,7 +59,7 @@ when we get to that point.
 ![image](https://github.com/wez/govee-lan-hass/assets/117777/c425615b-d7be-4ff2-a0d9-c8b7cfb8b63e)
 
 4. Click on "Repositories"
-5. Enter `https://github.com/wez/govee2mqtt` and click "Add"
+5. Enter `https://github.com/alexluckett/govee2mqtt-segment-control` and click "Add"
 6. You should see:
 
 ![image](https://github.com/wez/govee-lan-hass/assets/117777/a2603e2d-dec1-4711-8d94-c957bf4a7a01)
