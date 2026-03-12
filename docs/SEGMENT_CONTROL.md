@@ -105,9 +105,9 @@ Assistant once will resynchronise the stored state.
   once before using the brightness slider.
 - **Mobile app changes are not tracked** — colors set outside govee2mqtt
   (mobile app, other integrations) are not reflected in the stored state.
-- **No segment on/off** — the LAN `ptReal` command controls color only.
-  The power toggle shown in Home Assistant for segment entities has no effect.
-  To darken a segment, set its brightness to 0 (sends black, `0x00 0x00 0x00`).
+- **Segment off = black** — turning a segment off sends `(0, 0, 0)` via the
+  `ptReal` command, which darkens that segment. The power toggle in Home
+  Assistant works correctly.
 - **Mixed-color brightness** — the brightness slider adjusts a single segment
   at a time. There is no single command to change the brightness of all
   segments simultaneously while preserving their individual colors.
