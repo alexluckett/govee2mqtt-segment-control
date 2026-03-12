@@ -43,6 +43,10 @@ pub struct Device {
 
     pub last_polled: Option<DateTime<Utc>>,
 
+    /// Last color sent to each segment via the LAN API.
+    /// devStatus returns (0,0,0) in segment mode, so we track this locally.
+    pub segment_colors: HashMap<u32, DeviceColor>,
+
     active_scene: Option<ActiveSceneInfo>,
 }
 

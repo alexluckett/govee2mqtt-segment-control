@@ -368,8 +368,16 @@ async fn mqtt_light_segment_command(
         let (r, g, b) = if command.state == "OFF" {
             (0u8, 0u8, 0u8)
         } else if let Some(color) = &command.color {
+            // Store the base color for this segment so brightness-only
+            // commands can scale it correctly. devStatus returns (0,0,0)
+            // in segment mode so the device cannot be queried for this.
+            state
+                .device_mut(&device.sku, &device.id)
+                .await
+                .segment_colors
+                .insert(segment, *color);
             if let Some(bri) = command.brightness {
-                let scale = bri as f32 / 255.0;
+                let scale = bri as f32 / 100.0;
                 (
                     (color.r as f32 * scale) as u8,
                     (color.g as f32 * scale) as u8,
@@ -379,9 +387,16 @@ async fn mqtt_light_segment_command(
                 (color.r, color.g, color.b)
             }
         } else {
-            // ON with no color: white at requested brightness (or full)
-            let bri = command.brightness.unwrap_or(255);
-            (bri, bri, bri)
+            // Brightness-only: scale the last color sent to this segment.
+            // Falls back to white if no color has been sent yet this session.
+            let stored = device.segment_colors.get(&segment).copied();
+            let base = stored.unwrap_or(DeviceColor { r: 255, g: 255, b: 255 });
+            let scale = command.brightness.unwrap_or(100) as f32 / 100.0;
+            (
+                (base.r as f32 * scale) as u8,
+                (base.g as f32 * scale) as u8,
+                (base.b as f32 * scale) as u8,
+            )
         };
 
         lan_dev.send_segment_color_rgb(segment, r, g, b).await?;
