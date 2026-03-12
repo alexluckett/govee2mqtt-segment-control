@@ -57,3 +57,35 @@ to configure these options.
 * If you have an IOT VLAN or similar, ensure that your firewall is not blocking
   the ports mentioned above
 
+## Per-Segment Color Control (e.g. H60B2)
+
+Some devices expose individually-addressable light segments. Where Govee's
+Platform API exposes segment capabilities, govee2mqtt creates a separate Home
+Assistant light entity per segment (e.g. `Segment 001`, `Segment 002`, …).
+
+For certain devices — currently the **H60B2** Tree Floor Lamp — segment color
+control is available via the LAN API even without a Govee API key, using a
+binary `ptReal` packet rather than the standard JSON commands. These segments
+appear as Home Assistant light entities automatically when the device is
+discovered on the LAN.
+
+See [Segment Control — H60B2](SEGMENT_CONTROL.md) for full technical details,
+known limitations, and accreditation.
+
+### Brightness and color state in segment mode
+
+The Govee LAN API's `devStatus` response reports `(0, 0, 0)` for a device's
+color when it is operating in segment mode. As a result, govee2mqtt cannot
+query the device to discover the current segment color.
+
+Instead, govee2mqtt tracks the last color sent to each segment during the
+current session. When a brightness-only command arrives from Home Assistant,
+that stored color is scaled to the requested brightness level.
+
+**Practical consequence:** if you change a segment's color using the Govee
+mobile app (or any other controller), govee2mqtt will not know about the
+change. The next brightness adjustment from Home Assistant will scale the
+previously-sent color, not the color currently showing on the device. To
+resynchronise, set the color for the segment from Home Assistant once, and
+brightness adjustments will then work correctly from that point on.
+
