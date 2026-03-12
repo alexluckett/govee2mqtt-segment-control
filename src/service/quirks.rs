@@ -38,6 +38,7 @@ pub struct Quirk {
     /// their state.
     pub iot_api_supported: bool,
     pub show_as_preset_buttons: Option<&'static [&'static str]>,
+    pub segment_count: Option<u8>,
 }
 
 impl Quirk {
@@ -60,6 +61,7 @@ impl Quirk {
             platform_humidity_sensor_units: None,
             iot_api_supported: false,
             show_as_preset_buttons: None,
+            segment_count: None,
         }
     }
 
@@ -129,6 +131,11 @@ impl Quirk {
 
     pub fn with_show_as_preset_modes(mut self, modes: &'static [&'static str]) -> Self {
         self.show_as_preset_buttons.replace(modes);
+        self
+    }
+
+    pub fn with_segments(mut self, count: u8) -> Self {
+        self.segment_count = Some(count);
         self
     }
 
@@ -298,6 +305,10 @@ fn load_quirks() -> HashMap<String, Quirk> {
         Quirk::lan_api_capable_light("H6073", FLOOR_LAMP),
         Quirk::lan_api_capable_light("H6076", FLOOR_LAMP),
         Quirk::lan_api_capable_light("H6078", FLOOR_LAMP),
+        // H60B2 Tree Floor Lamp: 3 individually-addressable segments.
+        // Segments are controlled via ptReal binary packets over LAN.
+        // <https://github.com/wez/govee2mqtt/issues/493>
+        Quirk::lan_api_capable_light("H60B2", FLOOR_LAMP).with_segments(3),
         Quirk::lan_api_capable_light("H6087", WALL_SCONCE),
         Quirk::lan_api_capable_light("H610A", STRIP),
         Quirk::lan_api_capable_light("H610B", STRIP),
