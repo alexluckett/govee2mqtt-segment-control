@@ -118,7 +118,7 @@ The `ptReal` binary packet format used here was reverse-engineered from:
 
 - [govee2mqtt issue #105](https://github.com/wez/govee2mqtt/issues/105) —
   community research into the binary packet structure
-- [govee-local-api](https://github.com/Bluetooth-Devices/govee-local-api) —
+- [govee-local-api](https://github.com/Galorhallen/govee-local-api) —
   the Python library whose packet construction was used as a reference
   implementation
 
