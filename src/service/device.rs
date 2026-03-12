@@ -576,6 +576,17 @@ impl Device {
             .unwrap_or(false)
     }
 
+    pub fn supports_segmented_rgb(&self) -> Option<std::ops::Range<u32>> {
+        if let Some(quirk) = self.resolve_quirk() {
+            if let Some(count) = quirk.segment_count {
+                return Some(0..count as u32);
+            }
+        }
+        self.http_device_info
+            .as_ref()
+            .and_then(|info| info.supports_segmented_rgb())
+    }
+
     pub fn is_ble_only_device(&self) -> Option<bool> {
         if let Some(quirk) = self.resolve_quirk() {
             return Some(quirk.ble_only);
