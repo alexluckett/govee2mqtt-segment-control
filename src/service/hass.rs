@@ -343,7 +343,9 @@ async fn mqtt_light_command(
 
     // Sync segment entity on/off and color state in HA whenever the global
     // light changes, since the global command applies uniformly to all LEDs.
-    if let Some(segments) = device.supports_segmented_rgb() {
+    // Only for quirk-based segment devices: behaviour with Platform-API
+    // segment devices has not been validated and could break their HA state.
+    if let Some(segments) = device.quirk_segmented_rgb() {
         if let Some(hass) = state.get_hass_client().await {
             for seg in segments {
                 let topic = light_segment_state_topic(&device, seg);
@@ -469,7 +471,7 @@ async fn mqtt_light_segment_command(
 
             // Reverse-sync: reflect aggregate segment state to the global light entity.
             // If at least one segment is on, the global entity is ON; all off → OFF.
-            if let Some(segments) = device.supports_segmented_rgb() {
+            if let Some(segments) = device.quirk_segmented_rgb() {
                 let any_on = ha_brightness > 0
                     || segments
                         .filter(|&s| s != segment)

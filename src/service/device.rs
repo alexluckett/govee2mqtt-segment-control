@@ -592,6 +592,16 @@ impl Device {
             .and_then(|info| info.supports_segmented_rgb())
     }
 
+    /// Returns the segment range only when declared via a quirk.
+    /// Use this instead of supports_segmented_rgb() wherever the behaviour
+    /// has only been validated against quirk-based (LAN-only) devices, so
+    /// that Platform-API segment devices are not accidentally affected.
+    pub fn quirk_segmented_rgb(&self) -> Option<std::ops::Range<u32>> {
+        self.resolve_quirk()
+            .and_then(|q| q.segment_count)
+            .map(|count| 0..count as u32)
+    }
+
     pub fn is_ble_only_device(&self) -> Option<bool> {
         if let Some(quirk) = self.resolve_quirk() {
             return Some(quirk.ble_only);
