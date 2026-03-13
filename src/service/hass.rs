@@ -405,14 +405,18 @@ async fn mqtt_light_segment_command(
     let device = state.resolve_device_for_control(&id).await?;
     let segment: u32 = segment.parse()?;
 
+    if let Some(range) = device.quirk_segmented_rgb() {
+        anyhow::ensure!(
+            range.contains(&segment),
+            "segment {segment} out of range (device has {} segments)",
+            range.end
+        );
+    }
+
     let command: HassLightCommand = from_json(&payload)?;
     log::info!("Command for {device} segment {segment}: {payload}");
 
     // LAN API path: encode color/brightness into RGB and send via ptReal.
-    log::info!(
-        "Segment command for {device} segment {segment}: lan_device={}",
-        if device.lan_device.is_some() { "present" } else { "not yet discovered" }
-    );
     if let Some(lan_dev) = &device.lan_device {
         log::info!("Using LAN API to control {device} segment {segment}");
 
@@ -471,11 +475,18 @@ async fn mqtt_light_segment_command(
 
             // Reverse-sync: reflect aggregate segment state to the global light entity.
             // If at least one segment is on, the global entity is ON; all off → OFF.
+            // Re-read from the authoritative store so sibling brightness values reflect
+            // all prior writes, not just the snapshot captured at handler entry.
             if let Some(segments) = device.quirk_segmented_rgb() {
+                let fresh = state.device_by_id(&device.id).await;
                 let any_on = ha_brightness > 0
                     || segments
                         .filter(|&s| s != segment)
-                        .any(|s| device.segment_brightness.get(&s).copied().unwrap_or(0) > 0);
+                        .any(|s| {
+                            fresh.as_ref()
+                                .and_then(|d| d.segment_brightness.get(&s).copied())
+                                .unwrap_or(0) > 0
+                        });
                 let global_topic = light_state_topic(&device);
                 let global_payload = if any_on {
                     serde_json::json!({"state": "ON"})
