@@ -1,6 +1,6 @@
 name: Govee to MQTT Bridge
 image: ghcr.io/alexluckett/govee2mqtt-segment-control-{arch}
-version: "2026.03.12-74a2924e"
+version: "2026.03.13-b4fa7d0"
 slug: govee2mqtt
 description: Control Govee Devices
 url: https://github.com/alexluckett/govee2mqtt-segment-control
