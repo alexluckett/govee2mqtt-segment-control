@@ -415,6 +415,8 @@ async fn mqtt_light_segment_command(
         log::info!("Using LAN API to control {device} segment {segment}");
 
         let (r, g, b, ha_color, ha_brightness) = if command.state == "OFF" {
+            state.device_mut(&device.sku, &device.id).await
+                .segment_brightness.insert(segment, 0);
             (0u8, 0u8, 0u8, DeviceColor::default(), 0u8)
         } else if let Some(color) = &command.color {
             let bri = command.brightness.unwrap_or(100);
@@ -464,6 +466,22 @@ async fn mqtt_light_segment_command(
                 })
             };
             hass.publish_obj(topic, &payload).await?;
+
+            // Reverse-sync: reflect aggregate segment state to the global light entity.
+            // If at least one segment is on, the global entity is ON; all off → OFF.
+            if let Some(segments) = device.supports_segmented_rgb() {
+                let any_on = ha_brightness > 0
+                    || segments
+                        .filter(|&s| s != segment)
+                        .any(|s| device.segment_brightness.get(&s).copied().unwrap_or(0) > 0);
+                let global_topic = light_state_topic(&device);
+                let global_payload = if any_on {
+                    serde_json::json!({"state": "ON"})
+                } else {
+                    serde_json::json!({"state": "OFF"})
+                };
+                hass.publish_obj(global_topic, &global_payload).await?;
+            }
         }
         return Ok(());
     }
